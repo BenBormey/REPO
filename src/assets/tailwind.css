@@ -1,0 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { --brand: #2B7A0B; }
+
+.btn { @apply inline-flex items-center gap-2 rounded-xl px-3 py-2; }
+.btn-primary { @apply bg-clinic-green text-white hover:brightness-110; }
+.btn-outline { @apply border border-clinic-green text-clinic-green; }
+.card { @apply bg-white rounded-2xl shadow-soft; }
