@@ -128,21 +128,23 @@
           </transition>
 
           <!-- Actions -->
-          <div class="mt-3 flex flex-wrap gap-2" v-if="showAction(b)">
-            <button
-              class="btn-primary"
-              :disabled="actingId===b.bookingId"
-              @click="confirm(b)"
-            >
-              {{ actingId===b.bookingId && actingType==='confirm' ? 'Confirming…' : 'Confirm (assign to me)' }}
-            </button>
-            <button
-              class="btn-outline"
-              :disabled="actingId===b.bookingId"
-              @click="decline(b)"
-            >
-              {{ actingId===b.bookingId && actingType==='decline' ? 'Declining…' : 'Decline' }}
-            </button>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <!-- Pending / Assigned -> Confirm / Decline -->
+            <template v-if="canClaim(b)">
+              <button class="btn-primary" :disabled="actingId===b.bookingId" @click="confirm(b)">
+                {{ actingId===b.bookingId && actingType==='confirm' ? 'Confirming…' : 'Confirm (assign to me)' }}
+              </button>
+              <button class="btn-outline" :disabled="actingId===b.bookingId" @click="decline(b)">
+                {{ actingId===b.bookingId && actingType==='decline' ? 'Declining…' : 'Decline' }}
+              </button>
+            </template>
+
+            <!-- Confirmed -> Complete -->
+            <template v-else-if="canComplete(b)">
+              <button class="btn-primary" :disabled="actingId===b.bookingId" @click="complete(b)">
+                {{ actingId===b.bookingId && actingType==='complete' ? 'Completing…' : 'Complete' }}
+              </button>
+            </template>
           </div>
         </li>
       </ul>
@@ -160,27 +162,29 @@ const router = useRouter()
 const auth = useAuthStore()
 
 /** API paths */
-const LIST_PATH = '/Booking/for-cleaner'
-const CONFIRM_PATH = (id: string) => `/Booking/${id}/confirm`   // PATCH
-const DECLINE_PATH = (id: string) => `/Booking/${id}/decline`   // PATCH
+const LIST_PATH     = '/Booking/for-cleaner'
+const CONFIRM_PATH  = (id: string) => `/Booking/${id}/confirm`
+const DECLINE_PATH  = (id: string) => `/Booking/${id}/decline`
+const COMPLETE_PATH = (id: string) => `/Booking/${id}/complete`
 
 /** state */
-const items = ref<any[]>([])
+const items   = ref<any[]>([])
 const loading = ref(false)
-const error = ref('')
+const error   = ref('')
 
 const q = ref({ status: 'pending', from: '', to: '' })
 const statuses = [
   { val: 'pending',   text: 'Pending',   dot: 'bg-amber-500' },
   { val: 'assigned',  text: 'Assigned',  dot: 'bg-green-500' },
-  { val: 'confirmed', text: 'Confirmed', dot: 'bg-emerald-600' },
+  { val: 'Confirmed', text: 'Confirmed', dot: 'bg-emerald-600' },
+  { val: 'Completed', text: 'Completed', dot: 'bg-gray-600' },
   { val: 'declined',  text: 'Declined',  dot: 'bg-rose-500' },
 ]
 
 const actingId   = ref<string|null>(null)
-const actingType = ref<'confirm'|'decline'|''>('')
+const actingType = ref<'confirm'|'decline'|'complete'|''>('')
 
-/** role guard (optional if your token has roles) */
+/** role guard */
 const isCleaner = computed(() => {
   const roles: string[] = auth.user?.roles || []
   return roles.map(r => r?.toLowerCase?.()).includes('cleaner') || !!auth.user?.cleanerId
@@ -197,6 +201,8 @@ const toggle = (id: any) => {
 }
 
 /** helpers */
+const norm = (s: any) => String(s ?? '').trim().toLowerCase()
+
 function initDefaultRange () {
   const now = new Date()
   const past = new Date(now); past.setDate(now.getDate() - 60)
@@ -207,12 +213,20 @@ function initDefaultRange () {
 function resetRange () { initDefaultRange(); load() }
 function shortId (id: any) { return String(id).split('-')[0] }
 function prettyStatus (s: any) {
-  const map: Record<string,string> = { pending: 'Pending', confirmed: 'Confirmed', declined: 'Declined', assigned: 'Assigned' }
-  return map[String(s ?? '').toLowerCase()] ?? s
+  const k = norm(s)
+  const map: Record<string,string> = {
+    pending: 'Pending',
+    assigned: 'Assigned',
+    confirmed: 'Confirmed',
+    completed: 'Completed',
+    declined: 'Declined'
+  }
+  return map[k] ?? s
 }
 function statusClass (s: any) {
-  const k = String(s ?? '').toLowerCase()
+  const k = norm(s)
   if (k === 'confirmed' || k === 'assigned') return 'badge-success'
+  if (k === 'completed') return 'badge'
   if (k === 'declined') return 'badge-danger'
   return 'badge-warn'
 }
@@ -224,10 +238,16 @@ function dateTimeLine (b: any) {
 function myCleanerId () {
   return auth?.user?.cleanerId || auth?.user?.id
 }
-function showAction (b: any) {
-  const k = String(b.status ?? '').toLowerCase()
-  // can act when pending OR assigned to me
-  return k === 'pending' || (k === 'assigned' && (!b.cleanerId || b.cleanerId === myCleanerId()))
+
+/** action guards */
+function isMine (b: any) { return !b.cleanerId || String(b.cleanerId) === String(myCleanerId()) }
+function canClaim (b: any) {
+  const k = norm(b.status)
+  // Show Confirm for 'pending' or 'assigned' (case-insensitive) and if it's open or already mine
+  return (k === 'pending' || k === 'assigned') && isMine(b)
+}
+function canComplete (b: any) {
+  return norm(b.status) === 'confirmed' && isMine(b)
 }
 
 /** data loaders */
@@ -235,62 +255,59 @@ async function load () {
   if (!auth.isAuth) return
   loading.value = true; error.value = ''; items.value = []
   try {
-    const res = await api.get(LIST_PATH, { params: { status: q.value.status, from: q.value.from, to: q.value.to } })
+    const params = { status: q.value.status, from: q.value.from || null, to: q.value.to || null }
+    const res = await api.get(LIST_PATH, { params })
     items.value = Array.isArray(res.data) ? res.data : []
   } catch (e: any) {
     if (e?.response?.status === 401) {
       router.replace({ name: 'login', query: { redirect: '/my-cleaning' } })
       return
     }
-    console.error('Cleaner load error:', e?.response?.data || e)
     error.value = e?.response?.data?.title || e?.message || 'Failed to load bookings'
   } finally {
     loading.value = false
   }
 }
 
+/** actions */
 async function confirm (b: any) {
   actingId.value = b.bookingId; actingType.value = 'confirm'
   const snapshot = { status: b.status, cleanerId: b.cleanerId }
   try {
-    // optimistic
-    b.status = 'confirmed'
+    b.status = 'Confirmed'       // optimistic
     b.cleanerId = myCleanerId()
     await api.patch(CONFIRM_PATH(b.bookingId))
-    // refresh list to reflect server truth (e.g., someone else took it)
     await load()
   } catch (e: any) {
-    // rollback
-    b.status = snapshot.status
-    b.cleanerId = snapshot.cleanerId
-    const msg = e?.response?.data?.title || e?.message || 'Confirm failed'
-    alert(msg)
-    if (e?.response?.status === 401) {
-      router.replace({ name: 'login', query: { redirect: '/my-cleaning' } })
-    }
-  } finally {
-    actingId.value = null; actingType.value = ''
-  }
+    b.status = snapshot.status; b.cleanerId = snapshot.cleanerId
+    alert(e?.response?.data?.title || e?.message || 'Confirm failed')
+  } finally { actingId.value = null; actingType.value = '' }
 }
 
 async function decline (b: any) {
   actingId.value = b.bookingId; actingType.value = 'decline'
   const snapshot = { status: b.status }
   try {
-    // optimistic
     b.status = 'declined'
     await api.patch(DECLINE_PATH(b.bookingId))
     await load()
   } catch (e: any) {
     b.status = snapshot.status
-    const msg = e?.response?.data?.title || e?.message || 'Decline failed'
-    alert(msg)
-    if (e?.response?.status === 401) {
-      router.replace({ name: 'login', query: { redirect: '/my-cleaning' } })
-    }
-  } finally {
-    actingId.value = null; actingType.value = ''
-  }
+    alert(e?.response?.data?.title || e?.message || 'Decline failed')
+  } finally { actingId.value = null; actingType.value = '' }
+}
+
+async function complete (b: any) {
+  actingId.value = b.bookingId; actingType.value = 'complete'
+  const snapshot = { status: b.status }
+  try {
+    b.status = 'Completed'       // optimistic
+    await api.patch(COMPLETE_PATH(b.bookingId))
+    await load()
+  } catch (e: any) {
+    b.status = snapshot.status
+    alert(e?.response?.data?.title || e?.message || 'Complete failed')
+  } finally { actingId.value = null; actingType.value = '' }
 }
 
 /** boot */

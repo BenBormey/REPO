@@ -7,11 +7,14 @@ const Cart       = () => import('@/pages/Cart.vue')
 const Checkout   = () => import('@/pages/Checkout.vue')
 const Login      = () => import('@/pages/Login.vue')
 const MyBookings = () => import('@/pages/MyBookings.vue')
-const MyCleaning = () => import('@/pages/MyCleaning.vue') // <-- fix casing
+const MyCleaning = () => import('@/pages/MyCleaning.vue')
 
 // Admin
-const AdminLayout    = () => import('@/layouts/AdminLayout.vue')
-const AdminDashboard = () => import('@/pages/admin/Dashboard.vue')
+const AdminLayout     = () => import('@/layouts/AdminLayout.vue')
+const AdminDashboard  = () => import('@/pages/admin/Dashboard.vue')
+const AdminServices   = () => import('@/pages/admin/Service.vue')     // ✅ CRUD page bong មានរួច
+const AdminBookings   = () => import('@/pages/admin/Bookings.vue')    // 🔹 stub ឬ page bong
+const AdminCleaners   = () => import('@/pages/admin/Cleaners.vue')    // 🔹 stub ឬ page bong
 
 const router = createRouter({
   history: createWebHistory(),
@@ -21,16 +24,22 @@ const router = createRouter({
     { path: '/cart',        name: 'cart',         component: Cart },
     { path: '/checkout',    name: 'checkout',     component: Checkout, meta: { requiresAuth: true } },
     { path: '/login',       name: 'login',        component: Login,     meta: { guestOnly: true } },
-    { path: '/my-bookings', name: 'my-bookings',  component: MyBookings,meta: { requiresAuth: true } },
-    { path: '/my-cleaning', name: 'my-cleaning',  component: MyCleaning,meta: { requiresAuth: true } },
+    { path: '/my-bookings', name: 'my-bookings',  component: MyBookings, meta: { requiresAuth: true } },
+    { path: '/my-cleaning', name: 'my-cleaning',  component: MyCleaning, meta: { requiresAuth: true } },
 
-    // ✅ Admin parent with children
+    // ✅ Admin with children
     {
       path: '/admin',
       component: AdminLayout,
-      meta: { requiresAuth: true }, // add role: 'admin' if you want
+      meta: { requiresAuth: true }, // add roles with meta if needed
       children: [
-        { path: 'dashboard', name: 'admin-dashboard', component: AdminDashboard }
+        { path: 'dashboard', name: 'admin-dashboard', component: AdminDashboard },
+        { path: 'services',  name: 'admin-services',  component: AdminServices },
+        { path: 'bookings',  name: 'admin-bookings',  component: AdminBookings },
+        { path: 'cleaners',  name: 'admin-cleaners',  component: AdminCleaners },
+
+
+        { path: '', redirect: { name: 'admin-dashboard' } }
       ]
     },
   ]
@@ -41,12 +50,12 @@ router.beforeEach((to, from, next) => {
   const auth = useAuthStore()
   const isLoggedIn = !!auth.token || !!auth.user
 
-  if (to.meta?.requiresAuth && !isLoggedIn) {
+  if (to.meta?.requiresAuth && !isLoggedIn)
     return next({ name: 'login', query: { redirect: to.fullPath } })
-  }
-  if (to.meta?.guestOnly && isLoggedIn) {
+
+  if (to.meta?.guestOnly && isLoggedIn)
     return next({ name: 'home' })
-  }
+
   next()
 })
 

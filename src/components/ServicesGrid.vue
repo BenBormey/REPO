@@ -49,7 +49,7 @@ const showToast = ref(false)
 const lastAdded = ref('')
 let toastTimer
 
-const FILE_BASE = import.meta.env.VITE_FILE_BASE || 'http://localhost:5203'
+const FILE_BASE = import.meta.env.VITE_FILE_BASE || 'http://localhost:7164'
 
 function normalize(srv) {
   const img = !srv?.imageUrl

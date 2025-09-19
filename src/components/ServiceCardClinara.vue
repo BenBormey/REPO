@@ -35,6 +35,6 @@ const props = defineProps({
   detailsTo: { type: [String, Object], default: '/services' }
 })
 
-const FILE_BASE = import.meta.env.VITE_FILE_BASE || 'http://localhost:5203'
+const FILE_BASE = import.meta.env.VITE_FILE_BASE || 'http://localhost:7164'
 const thumb = (p) => !p ? 'https://placehold.co/600x400?text=Service' : (p.startsWith('http') ? p : FILE_BASE + p)
 </script>

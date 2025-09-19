@@ -48,6 +48,7 @@ const menu = [
   { label: "Dashboard", to: "/admin/dashboard", icon: "📊" },
   { label: "Services", to: "/admin/services", icon: "🛠" },
   { label: "Bookings", to: "/admin/bookings", icon: "📅" },
+  
   { label: "Cleaners", to: "/admin/cleaners", icon: "🧹" },
 ];
 </script>
