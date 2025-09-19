@@ -2,7 +2,7 @@
   <section class="max-w-4xl mx-auto px-4 py-10">
     <h1 class="text-3xl font-bold mb-6">Place Booking</h1>
 
-    <!-- Require login banner (in case route guard is not set) -->
+    <!-- Require login banner -->
     <div
       v-if="!auth.isAuth"
       class="mb-4 rounded-lg border bg-amber-50 text-amber-900 px-4 py-3 flex items-center justify-between"
@@ -23,8 +23,8 @@
         Using service from cart: <b>{{ cart.items[0].name }}</b> (x{{ cart.items[0].qty }})
       </div>
       <div v-else>
-        Multiple services in cart ({{ cart.items.length }} items). This will create
-        <b>{{ cart.items.length }}</b> bookings — one per service.
+        Multiple services in cart ({{ cart.items.length }} items).
+        This will create <b>1 booking</b> with multiple items.
       </div>
     </div>
 
@@ -34,7 +34,7 @@
 
     <!-- Form -->
     <form v-else-if="auth.isAuth" class="space-y-6" @submit.prevent="submit">
-      <!-- Service selection (hidden/disabled when taking from cart) -->
+      <!-- Service selection -->
       <div class="card p-5">
         <label class="block mb-2 text-sm text-gray-600">Service *</label>
 
@@ -51,9 +51,9 @@
           </option>
         </select>
 
-        <!-- Preview for single service (cart or dropdown) -->
+        <!-- Preview -->
         <div v-if="currentPreview" class="flex gap-4 items-center mt-4">
-          <img :src="thumb(currentPreview.imageUrl)" class="w-24 h-24 object-cover rounded-lg" alt="" />
+          <img :src="thumb(currentPreview.imageUrl)" class="w-24 h-24 object-cover rounded-lg" />
           <div>
             <div class="font-semibold">{{ currentPreview.name }}</div>
             <div class="text-sm text-gray-600">
@@ -63,7 +63,7 @@
           </div>
         </div>
 
-        <!-- When many cart items, show a compact list -->
+        <!-- Compact list when many -->
         <div v-if="fromCartMany" class="mt-3 space-y-2">
           <div v-for="it in cart.items" :key="it.id" class="flex items-center justify-between text-sm">
             <div class="flex items-center gap-3">
@@ -79,39 +79,23 @@
       <div class="grid sm:grid-cols-2 gap-4">
         <label class="block">
           <span class="text-sm text-gray-600">Full name *</span>
-          <input
-            v-model.trim="f.fullName"
-            :readonly="!!auth.user?.fullName"
-            class="w-full border rounded-lg px-3 py-2"
-            required
-          />
+          <input v-model.trim="f.fullName" :readonly="!!auth.user?.fullName"
+                 class="w-full border rounded-lg px-3 py-2" required />
         </label>
         <label class="block">
           <span class="text-sm text-gray-600">Phone *</span>
-          <input
-            v-model.trim="f.phone"
-            :readonly="!!auth.user?.phone"
-            class="w-full border rounded-lg px-3 py-2"
-            required
-          />
+          <input v-model.trim="f.phone" :readonly="!!auth.user?.phone"
+                 class="w-full border rounded-lg px-3 py-2" required />
         </label>
         <label class="block">
           <span class="text-sm text-gray-600">Email</span>
-          <input
-            v-model.trim="f.email"
-            :readonly="!!auth.user?.email"
-            type="email"
-            class="w-full border rounded-lg px-3 py-2"
-          />
+          <input v-model.trim="f.email" type="email" :readonly="!!auth.user?.email"
+                 class="w-full border rounded-lg px-3 py-2" />
         </label>
         <label class="block">
           <span class="text-sm text-gray-600">Address *</span>
-          <input
-            v-model.trim="f.address"
-            :readonly="!!auth.user?.address"
-            class="w-full border rounded-lg px-3 py-2"
-            required
-          />
+          <input v-model.trim="f.address" :readonly="!!auth.user?.address"
+                 class="w-full border rounded-lg px-3 py-2" required />
         </label>
         <label class="block">
           <span class="text-sm text-gray-600">Date *</span>
@@ -154,36 +138,23 @@ const router = useRouter()
 const cart = useCartStore()
 const auth = useAuthStore()
 
-// ENV
 const FILE_BASE    = import.meta.env.VITE_FILE_BASE || 'http://localhost:5203'
 const BOOKING_PATH = import.meta.env.VITE_BOOKING_PATH || '/Booking'
 const LOCATION_ID  = Number(import.meta.env.VITE_DEFAULT_LOCATION_ID || 0)
 
-// data
 const services   = ref([])
 const loadingSrv = ref(false)
 const srvError   = ref('')
 
-const f = ref({
-  serviceId: '',
-  fullName: '',
-  phone: '',
-  email: '',
-  address: '',
-  date: '',
-  time: '',
-  notes: ''
-})
+const f = ref({ serviceId: '', fullName: '', phone: '', email: '', address: '', date: '', time: '', notes: '' })
 
 const loading = ref(false)
 const ok      = ref(false)
 const error   = ref('')
 
-// cart helpers
 const fromCartOne  = computed(() => cart.items.length === 1)
 const fromCartMany = computed(() => cart.items.length > 1)
 
-// preview target (either dropdown choice or first cart item)
 const currentPreview = computed(() => {
   if (fromCartOne.value) {
     const it = cart.items[0]
@@ -196,7 +167,6 @@ const currentPreview = computed(() => {
 const money = n => Number(n ?? 0).toFixed(2)
 const thumb = p => !p ? 'https://placehold.co/300x200?text=No+Image' : (p.startsWith('http') ? p : `${FILE_BASE}${p}`)
 
-// prefill contact from token (if present)
 function prefillFromToken () {
   if (auth.user?.customerId) f.value.customerId = auth.user.customerId
   if (auth.user?.fullName)   f.value.fullName   = auth.user.fullName
@@ -218,101 +188,73 @@ async function loadServices() {
 }
 
 onMounted(async () => {
-  // if not auth, bounce to login (also shows banner)
   if (!auth.isAuth) {
     router.replace({ name: 'login', query: { redirect: route.fullPath } })
     return
   }
-
-  // defaults
   const d = new Date(); d.setDate(d.getDate() + 1)
   f.value.date = d.toISOString().slice(0,10)
   f.value.time = '09:00'
-
   prefillFromToken()
   await loadServices()
-
-  // Preselect: cart(1) > query(?serviceId)
-  if (fromCartOne.value) {
-    f.value.serviceId = String(cart.items[0].id)
-  } else if (route.query.serviceId) {
+  if (fromCartOne.value) f.value.serviceId = String(cart.items[0].id)
+  else if (route.query.serviceId) {
     const q = String(route.query.serviceId)
     if (services.value.some(s => String(s.serviceId) === q)) f.value.serviceId = q
   }
 })
 
-// If token changes after mount (login/logout), react accordingly
-watch(
-  () => auth.token,
-  (t) => {
-    if (!t) {
-      router.replace({ name: 'login', query: { redirect: route.fullPath } })
-    } else {
-      prefillFromToken()
-    }
-  }
-)
+watch(() => auth.token, (t) => {
+  if (!t) router.replace({ name: 'login', query: { redirect: route.fullPath } })
+  else prefillFromToken()
+})
 
 function validate() {
   if (!auth.isAuth) return 'Please sign in to place a booking.'
-  if (fromCartMany.value) {
-    if (!cart.items.length) return 'Your cart is empty.'
-  } else if (!f.value.serviceId) {
-    return 'Please select a service.'
-  }
+  if (fromCartMany.value && !cart.items.length) return 'Your cart is empty.'
+  if (!fromCartMany.value && !f.value.serviceId) return 'Please select a service.'
   if (!f.value.fullName || !f.value.phone || !f.value.address) return 'Fill full name, phone and address.'
   if (!f.value.date || !f.value.time) return 'Pick date & time.'
   return ''
 }
-const formatTime = (t) => {
-  if (!t) return null
-  const [h, m] = t.split(":")
-  return `${h.padStart(2,"0")}:${m.padStart(2,"0")}:00`
-}
 
+const formatTime = t => t ? `${t.padStart(5,'0')}:00` : null
+
+function buildItems(serviceId) {
+  if (fromCartMany.value) {
+    return cart.items.map(it => ({
+      serviceId: Number(it.id),
+      quantity : Number(it.qty ?? 1),
+      price    : Number(it.price ?? 0),
+      remark   : ''
+    }))
+  } else {
+    const svcId = Number(serviceId)
+    const svc   = services.value.find(s => Number(s.serviceId) === svcId)
+    return [{ serviceId: svcId, quantity: 1, price: Number(svc?.price ?? 0), remark: '' }]
+  }
+}
 
 async function submit() {
   error.value = ''; ok.value = false
   const msg = validate()
   if (msg) { error.value = msg; return }
-
   loading.value = true
   try {
     const when    = `${f.value.date}T${f.value.time}:00`
     const contact = `Contact: ${f.value.fullName} | ${f.value.phone}${f.value.email ? ' | ' + f.value.email : ''}`
     const notes   = [contact, f.value.notes].filter(Boolean).join('\n')
-
-    const sendBooking = (serviceId) => {
-      if (!auth.user) {
-        return Promise.reject(new Error('Not logged in'))
-      }
-      const payload = {
-        customerId   : auth.user.customerId ?? auth.user.id, // fallback if backend uses id
-        cleanerId    : null,
-        serviceId    : Number(serviceId),
-        bookingDate  : when,               // e.g. "2025-09-14T09:00:00"
-        timeSlot     : formatTime(f.value.time),      //    // e.g. "09:00"
-        locationId   : 1,
-        addressDetail: f.value.address,
-        notes
-      }
-      alert(JSON.stringify(payload, null, 2))
-
-
-      // Debug view (optional)
-      console.log('Booking payload:', payload)
-      // alert(JSON.stringify(payload, null, 2))
-
-      return api.post(BOOKING_PATH, payload)
+    const payload = {
+      customerId    : auth.user.customerId ?? auth.user.id,
+      cleanerId     : null,
+      bookingDate   : when,
+      timeSlot      : formatTime(f.value.time),
+      locationId    : 1,
+      addressDetail : f.value.address,
+      notes,
+      items         : buildItems(fromCartOne.value ? cart.items[0].id : f.value.serviceId)
     }
-
-    if (fromCartMany.value) {
-      await Promise.all(cart.items.map(it => sendBooking(it.id)))
-    } else {
-      const svcId = fromCartOne.value ? cart.items[0].id : f.value.serviceId
-      await sendBooking(svcId)
-    }
-
+    await api.post(BOOKING_PATH, payload)
     ok.value = true
     if (typeof cart.clear === 'function') cart.clear()
     setTimeout(() => router.push('/services'), 900)
@@ -321,10 +263,7 @@ async function submit() {
       router.replace({ name: 'login', query: { redirect: route.fullPath } })
       return
     }
-    const title = e?.response?.data?.title || e?.response?.data?.error || e?.message || 'Submit failed'
-    error.value = title.includes('customer')
-      ? `${title}. Ensure your JWT includes an id/customerId claim or your API infers customer from the token.`
-      : title
+    error.value = e?.response?.data?.title || e?.response?.data?.error || e?.message || 'Submit failed'
   } finally {
     loading.value = false
   }

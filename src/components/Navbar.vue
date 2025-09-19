@@ -12,7 +12,7 @@
         <router-link class="hover:text-blue-600" to="/services">Services</router-link>
         <router-link class="hover:text-blue-600" to="/cart">Cart</router-link>
 
-        <!-- Show only to customers (NOT cleaners/admins) -->
+        <!-- Show only to customers -->
         <router-link
           v-if="isCustomer"
           class="hover:text-blue-600"
@@ -27,13 +27,14 @@
           to="/my-cleaning">
           My Cleaning
         </router-link>
-      </nav>
-      <nav>
+
+        <!-- Show only to admins -->
         <router-link
           v-if="isAdmin"
           class="hover:text-blue-600"
-          to="/my-cleaning">
-          DashBourd       </router-link>
+          to="/admin/dashboard">
+          Dashboard
+        </router-link>
       </nav>
 
       <!-- Auth buttons -->
@@ -67,13 +68,13 @@ const router = useRouter()
 // Use token-based flag from your Pinia store
 const isLoggedIn = computed(() => auth.isAuth)
 
-// Normalize roles as an array
+// Normalize roles as array
 const roles = computed(() => Array.isArray(auth.user?.roles) ? auth.user.roles : [])
 
 // Role helpers
 const isCleaner  = computed(() => roles.value.includes('Cleaner'))
 const isCustomer = computed(() => roles.value.includes('Customer'))
-const isAdmin = computed(()=>roles.value.includes('Admin') )
+const isAdmin    = computed(() => roles.value.includes('Admin'))
 
 function logout () {
   auth.logout()

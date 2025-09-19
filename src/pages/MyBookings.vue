@@ -43,6 +43,7 @@
 
       <ul v-else class="space-y-3">
         <li v-for="b in items" :key="b.bookingId" class="p-4 border rounded-2xl bg-white">
+          <!-- Header -->
           <div class="flex items-center justify-between gap-3">
             <div class="font-semibold">
               Booking #{{ shortId(b.bookingId) }}
@@ -51,17 +52,71 @@
             <div class="text-sm text-gray-500">{{ dateTimeLine(b) }}</div>
           </div>
 
+          <!-- Meta row -->
           <div class="grid sm:grid-cols-2 md:grid-cols-3 gap-2 mt-2 text-sm">
-            <div><span class="muted">Service ID:</span> {{ b.serviceId }}</div>
-            <div><span class="muted">Location:</span> {{ b.locationId }}</div>
-            <div><span class="muted">Time slot:</span> {{ b.timeSlot }}</div>
-            <div class="sm:col-span-2"><span class="muted">Address:</span> {{ b.addressDetail }}</div>
+            <div><span class="muted">Location:</span> {{ b.locationId ?? '—' }}</div>
+            <div><span class="muted">Time slot:</span> {{ b.timeSlot || '—' }}</div>
+            <div class="sm:col-span-2"><span class="muted">Address:</span> {{ b.addressDetail || '—' }}</div>
           </div>
 
-          <details class="mt-2">
-            <summary class="text-sm text-gray-600 cursor-pointer">Notes</summary>
-            <pre class="text-xs bg-gray-50 p-2 rounded overflow-auto whitespace-pre-wrap">{{ b.notes }}</pre>
-          </details>
+          <!-- Toggle button -->
+          <div class="mt-3">
+            <button
+              type="button"
+              class="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm hover:bg-gray-50"
+              @click="toggle(b.bookingId)"
+              :aria-expanded="isOpen(b.bookingId)"
+            >
+              <svg :class="['h-4 w-4 transition-transform', isOpen(b.bookingId) ? 'rotate-90' : '']" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 111.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+              </svg>
+              <span>{{ isOpen(b.bookingId) ? 'Hide details' : 'Show details' }}</span>
+            </button>
+          </div>
+
+          <!-- Details (collapsed by default) -->
+          <transition name="fade">
+            <div v-if="isOpen(b.bookingId)" class="mt-3 space-y-3">
+              <!-- Table -->
+              <div v-if="Array.isArray(b.details) && b.details.length" class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                  <thead>
+                    <tr class="text-left border-b">
+                      <th class="py-2 pr-3">Service</th>
+                      <th class="py-2 pr-3">Qty</th>
+                      <th class="py-2 pr-3">Price</th>
+                      <th class="py-2 pr-3">Subtotal</th>
+                      <th class="py-2">Remark</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="d in b.details" :key="d.bookingDetailId" class="border-b last:border-0">
+                      <td class="py-2 pr-3">
+                        {{ serviceName(d.serviceId) }} <span class="opacity-60">(#{{ d.serviceId }})</span>
+                      </td>
+                      <td class="py-2 pr-3">{{ d.quantity ?? 0 }}</td>
+                      <td class="py-2 pr-3">${{ money(d.price ?? 0) }}</td>
+                      <td class="py-2 pr-3">${{ money(detailSubtotal(d)) }}</td>
+                      <td class="py-2">{{ d.remark || '' }}</td>
+                    </tr>
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colspan="3" class="py-2 text-right font-semibold">Total</td>
+                      <td class="py-2 font-semibold">${{ money(bookingTotal(b)) }}</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              <!-- Notes -->
+              <details v-if="b.notes">
+                <summary class="text-sm text-gray-600 cursor-pointer">Notes</summary>
+                <pre class="text-xs bg-gray-50 p-2 rounded overflow-auto whitespace-pre-wrap">{{ b.notes }}</pre>
+              </details>
+            </div>
+          </transition>
         </li>
       </ul>
     </div>
@@ -81,6 +136,19 @@ const error = ref('')
 
 const q = ref({ from: '', to: '' })
 
+// collapsed state
+const openIds = ref(new Set())
+const isOpen = (id) => openIds.value.has(String(id))
+const toggle = (id) => {
+  const k = String(id)
+  const s = new Set(openIds.value)
+  if (s.has(k)) s.delete(k); else s.add(k)
+  openIds.value = s
+}
+
+// service cache for names
+const serviceMap = ref(new Map())
+
 function initDefaultRange() {
   const now = new Date()
   const past = new Date(now); past.setDate(now.getDate() - 60)
@@ -93,7 +161,7 @@ function resetRange() { initDefaultRange(); load() }
 function shortId(id) { return String(id).split('-')[0] }
 function prettyStatus(s) {
   const map = { pending: 'Pending', confirmed: 'Confirmed', declined: 'Declined', assigned: 'Assigned' }
-  return map[s?.toLowerCase?.()] ?? s
+  return map[s?.toLowerCase?.()] ?? s ?? '—'
 }
 function statusClass(s) {
   const k = s?.toLowerCase?.()
@@ -105,6 +173,31 @@ function dateTimeLine(b) {
   const d = new Date(b.bookingDate)
   const dStr = isNaN(d) ? b.bookingDate : d.toLocaleString()
   return `${dStr} • Slot ${b.timeSlot || ''}`
+}
+
+const money = n => Number(n ?? 0).toFixed(2)
+function detailSubtotal(d) {
+  const raw = Number(d?.subtotal ?? 0)
+  if (raw > 0) return raw
+  return Number(d?.quantity ?? 0) * Number(d?.price ?? 0)
+}
+function bookingTotal(b) {
+  if (!Array.isArray(b.details)) return 0
+  return b.details.reduce((sum, d) => sum + detailSubtotal(d), 0)
+}
+function serviceName(serviceId) {
+  const id = Number(serviceId)
+  return serviceMap.value.get(id)?.name ?? 'Service'
+}
+
+async function loadServices() {
+  try {
+    const res = await api.get('/Service')
+    const list = Array.isArray(res.data) ? res.data : [res.data]
+    const m = new Map()
+    for (const s of list) m.set(Number(s.serviceId), { name: s.name })
+    serviceMap.value = m
+  } catch {/* ignore */}
 }
 
 async function load() {
@@ -122,7 +215,12 @@ async function load() {
   }
 }
 
-onMounted(() => { if (auth.isAuth) { initDefaultRange(); load() } })
+onMounted(async () => {
+  if (auth.isAuth) {
+    initDefaultRange()
+    await Promise.all([loadServices(), load()])
+  }
+})
 </script>
 
 <style scoped>
@@ -135,4 +233,8 @@ onMounted(() => { if (auth.isAuth) { initDefaultRange(); load() } })
 .btn-outline { padding: 8px 14px; border-radius: 10px; border: 1px solid #d1d5db; background: white; color: #111827; }
 .input { width: 100%; border: 1px solid #e5e7eb; border-radius: 12px; padding: 8px 12px; }
 .label { font-size: 0.875rem; color: #6b7280; }
+
+/* simple fade for expand/collapse */
+.fade-enter-active, .fade-leave-active { transition: opacity .15s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
 </style>
